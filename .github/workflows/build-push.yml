@@ -1,28 +1,22 @@
 name: Build and Push
-
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
-
 env:
   IMAGE_NAME: ghcr.io/${{ github.repository }}
-
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
-
       - run: dotnet restore
       - run: dotnet build --no-restore -c Release
       - run: dotnet test --no-build -c Release --verbosity normal
-
   build-push:
     needs: test
     runs-on: ubuntu-latest
@@ -30,19 +24,15 @@ jobs:
     permissions:
       contents: read
       packages: write
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: docker/setup-buildx-action@v3
-
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Derive tags
         id: meta
         uses: docker/metadata-action@v5
@@ -51,7 +41,6 @@ jobs:
           tags: |
             type=sha,format=short
             type=raw,value=latest
-
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
@@ -62,3 +51,25 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+  deploy:
+    needs: build-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Deploy to Container Apps
+        run: |
+          TAG="sha-${GITHUB_SHA::7}"
+          echo "Deploying image tag: $TAG"
+          az containerapp update \
+            --name ${{ vars.CONTAINER_APP }} \
+            --resource-group ${{ vars.RESOURCE_GROUP }} \
+            --image ghcr.io/${{ github.repository }}:$TAG
