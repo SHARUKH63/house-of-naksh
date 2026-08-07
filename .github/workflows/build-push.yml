@@ -68,8 +68,10 @@ jobs:
       - name: Deploy to Container Apps
         run: |
           TAG="sha-${GITHUB_SHA::7}"
-          echo "Deploying image tag: $TAG"
+          REPO_LC=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE="ghcr.io/${REPO_LC}:${TAG}"
+          echo "Deploying $IMAGE"
           az containerapp update \
             --name ${{ vars.CONTAINER_APP }} \
             --resource-group ${{ vars.RESOURCE_GROUP }} \
-            --image ghcr.io/${{ github.repository }}:$TAG
+            --image "$IMAGE"
