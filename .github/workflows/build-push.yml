@@ -1,11 +1,14 @@
 name: Build and Push
+
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+
 env:
   IMAGE_NAME: ghcr.io/${{ github.repository }}
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -17,6 +20,7 @@ jobs:
       - run: dotnet restore
       - run: dotnet build --no-restore -c Release
       - run: dotnet test --no-build -c Release --verbosity normal
+
   build-push:
     needs: test
     runs-on: ubuntu-latest
@@ -51,6 +55,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
   migrate:
     needs: build-push
     runs-on: ubuntu-latest
@@ -60,13 +65,17 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
+
       - name: Install EF Core tools
         run: dotnet tool install --global dotnet-ef
+
       - name: Restore
         run: dotnet restore
+
       - name: Generate idempotent migration script
         run: |
           dotnet ef migrations script \
@@ -77,12 +86,14 @@ jobs:
           echo "----- SQL to be applied -----"
           cat migrations.sql
           echo "-----------------------------"
+
       - name: Azure login
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
       - name: Open firewall for runner
         run: |
           RUNNER_IP=$(curl -s https://api.ipify.org)
@@ -93,14 +104,15 @@ jobs:
             --name "gh-runner-${{ github.run_id }}" \
             --start-ip-address $RUNNER_IP \
             --end-ip-address $RUNNER_IP
+
       - name: Apply migrations
+        env:
+          HOUSEOFNAKSH_MIGRATIONS_CONNECTION: "Server=tcp:${{ vars.SQL_SERVER_NAME }}.database.windows.net,1433;Initial Catalog=${{ vars.SQL_DATABASE_NAME }};User ID=hondbadmin;Password=${{ secrets.SQL_ADMIN_PASSWORD }};Encrypt=True;TrustServerCertificate=False;Connection Timeout=60;"
         run: |
-          sqlcmd -C -b \
-            -S tcp:${{ vars.SQL_SERVER_NAME }}.database.windows.net,1433 \
-            -d ${{ vars.SQL_DATABASE_NAME }} \
-            -U hondbadmin \
-            -P '${{ secrets.SQL_ADMIN_PASSWORD }}' \
-            -i migrations.sql
+          dotnet ef database update \
+            --project src/HouseOfNaksh.Infrastructure \
+            --startup-project src/HouseOfNaksh.Infrastructure
+
       - name: Close firewall
         if: always()
         run: |
@@ -109,6 +121,7 @@ jobs:
             --server ${{ vars.SQL_SERVER_NAME }} \
             --name "gh-runner-${{ github.run_id }}" \
             || true
+
   deploy:
     needs: migrate
     runs-on: ubuntu-latest
@@ -123,6 +136,7 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
       - name: Deploy to Container Apps
         run: |
           TAG="sha-${GITHUB_SHA::7}"
