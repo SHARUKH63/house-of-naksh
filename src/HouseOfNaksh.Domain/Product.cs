@@ -15,4 +15,5 @@ public class Product
 
     // Optimistic concurrency — SQL Server maintains this automatically
     public byte[]? RowVersion { get; set; }
+    public string? Category { get; set; }
 }
