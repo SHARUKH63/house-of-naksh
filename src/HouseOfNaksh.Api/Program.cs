@@ -1,3 +1,6 @@
+using HouseOfNaksh.Infrastructure;
+using Microsoft.EntityFrameworkCore;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -7,6 +10,17 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHealthChecks();
+builder.Services.AddDbContext<HouseOfNakshDbContext>(options =>
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("HouseOfNakshDb"),
+        sql =>
+        {
+            sql.EnableRetryOnFailure(
+                maxRetryCount: 5,
+                maxRetryDelay: TimeSpan.FromSeconds(30),
+                errorNumbersToAdd: null);
+            sql.CommandTimeout(60);
+        }));
 
 var app = builder.Build();
 
