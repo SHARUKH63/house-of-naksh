@@ -51,8 +51,64 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-  deploy:
+  migrate:
     needs: build-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Install EF Core tools
+        run: dotnet tool install --global dotnet-ef
+      - name: Generate idempotent migration script
+        run: |
+          dotnet ef migrations script \
+            --idempotent \
+            --project src/HouseOfNaksh.Infrastructure \
+            --startup-project src/HouseOfNaksh.Infrastructure \
+            --output migrations.sql
+          echo "----- SQL to be applied -----"
+          cat migrations.sql
+          echo "-----------------------------"
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Open firewall for runner
+        run: |
+          RUNNER_IP=$(curl -s https://api.ipify.org)
+          echo "Runner IP: $RUNNER_IP"
+          az sql server firewall-rule create \
+            --resource-group ${{ vars.SQL_RESOURCE_GROUP }} \
+            --server ${{ vars.SQL_SERVER_NAME }} \
+            --name "gh-runner-${{ github.run_id }}" \
+            --start-ip-address $RUNNER_IP \
+            --end-ip-address $RUNNER_IP
+      - name: Apply migrations
+        run: |
+          sqlcmd -C -b \
+            -S tcp:${{ vars.SQL_SERVER_NAME }}.database.windows.net,1433 \
+            -d ${{ vars.SQL_DATABASE_NAME }} \
+            -U hondbadmin \
+            -P '${{ secrets.SQL_ADMIN_PASSWORD }}' \
+            -i migrations.sql
+      - name: Close firewall
+        if: always()
+        run: |
+          az sql server firewall-rule delete \
+            --resource-group ${{ vars.SQL_RESOURCE_GROUP }} \
+            --server ${{ vars.SQL_SERVER_NAME }} \
+            --name "gh-runner-${{ github.run_id }}" \
+            || true
+  deploy:
+    needs: migrate
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     permissions:
