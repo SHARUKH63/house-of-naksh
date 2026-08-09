@@ -12,8 +12,15 @@ public class HouseOfNakshDbContextFactory : IDesignTimeDbContextFactory<HouseOfN
             ?? "Server=(localdb)\\mssqllocaldb;Database=HouseOfNaksh;Trusted_Connection=True;TrustServerCertificate=True";
 
         var options = new DbContextOptionsBuilder<HouseOfNakshDbContext>()
-            .UseSqlServer(connectionString)
-            .Options;
+        .UseSqlServer(connectionString, sql =>
+        {
+            sql.EnableRetryOnFailure(
+                maxRetryCount: 10,
+                maxRetryDelay: TimeSpan.FromSeconds(20),
+                errorNumbersToAdd: null);
+            sql.CommandTimeout(180);
+        })
+        .Options;
 
         return new HouseOfNakshDbContext(options);
     }
