@@ -65,6 +65,8 @@ jobs:
           global-json-file: global.json
       - name: Install EF Core tools
         run: dotnet tool install --global dotnet-ef
+      - name: Restore
+        run: dotnet restore
       - name: Generate idempotent migration script
         run: |
           dotnet ef migrations script \
