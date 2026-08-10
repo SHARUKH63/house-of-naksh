@@ -33,6 +33,11 @@ if (app.Environment.IsDevelopment())
 
 app.MapHealthChecks("/health");
 
+app.MapGet("/config-check", (IConfiguration cfg) => new {
+    hasRazorpayKey = !string.IsNullOrEmpty(cfg["Payments:RazorpayKeyId"]),
+    prefix = cfg["Payments:RazorpayKeyId"]?[..Math.Min(8, cfg["Payments:RazorpayKeyId"]!.Length)]
+});
+
 app.UseAuthorization();
 
 app.MapControllers();
