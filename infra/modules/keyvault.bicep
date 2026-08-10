@@ -8,6 +8,7 @@ param location string
 param tags object
 
 @description('Principal ID of the Container App managed identity')
+@minLength(36)
 param appPrincipalId string
 
 resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
