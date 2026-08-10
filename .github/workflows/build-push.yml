@@ -10,7 +10,38 @@ env:
   IMAGE_NAME: ghcr.io/${{ github.repository }}
 
 jobs:
+  infra:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: What-if (plan)
+        run: |
+          az deployment group what-if \
+            --resource-group ${{ vars.RESOURCE_GROUP }} \
+            --template-file infra/main.bicep
+            --parameters infra/main.bicepparam
+
+      - name: Deploy infrastructure
+        if: github.ref == 'refs/heads/main'
+        run: |
+          az deployment group create \
+            --resource-group ${{ vars.RESOURCE_GROUP }} \
+            --template-file infra/main.bicep \
+            --name "ci-${{ github.run_id }}"
+
   test:
+    needs: infra
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -107,7 +138,7 @@ jobs:
 
       - name: Apply migrations
         env:
-          HOUSEOFNAKSH_MIGRATIONS_CONNECTION: "Server=tcp:${{ vars.SQL_SERVER_NAME }}.database.windows.net,1433;Initial Catalog=${{ vars.SQL_DATABASE_NAME }};User ID=hondbadmin;Password=${{ secrets.SQL_ADMIN_PASSWORD }};Encrypt=True;TrustServerCertificate=False;Connection Timeout=60;"
+          HOUSEOFNAKSH_MIGRATIONS_CONNECTION: "Server=tcp:${{ vars.SQL_SERVER_NAME }}.database.windows.net,1433;Initial Catalog=${{ vars.SQL_DATABASE_NAME }};Authentication=Active Directory Default;Encrypt=True;TrustServerCertificate=False;Connection Timeout=120;"
         run: |
           dotnet ef database update \
             --project src/HouseOfNaksh.Infrastructure \
