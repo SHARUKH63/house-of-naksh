@@ -18,6 +18,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Debug - inspect checkout
+        run: |
+          echo "--- files under infra ---"
+          find infra -type f || echo "infra directory not found"
+          echo "--- APP_PRINCIPAL_ID variable ---"
+          echo "value is: '${{ vars.APP_PRINCIPAL_ID }}'"
+
       - name: Azure login
         uses: azure/login@v2
         with:
@@ -29,8 +36,8 @@ jobs:
         run: |
           az deployment group what-if \
             --resource-group ${{ vars.RESOURCE_GROUP }} \
-            --template-file infra/main.bicep
-            --parameters infra/main.bicepparam
+            --template-file infra/main.bicep \
+            --parameters environmentName=dev appPrincipalId=${{ vars.APP_PRINCIPAL_ID }}
 
       - name: Deploy infrastructure
         if: github.ref == 'refs/heads/main'
@@ -38,7 +45,7 @@ jobs:
           az deployment group create \
             --resource-group ${{ vars.RESOURCE_GROUP }} \
             --template-file infra/main.bicep \
-            --parameters infra/main.bicepparam \
+            --parameters environmentName=dev appPrincipalId=${{ vars.APP_PRINCIPAL_ID }} \
             --name "ci-${{ github.run_id }}"
 
   test:
