@@ -1,17 +1,33 @@
 targetScope = 'resourceGroup'
 
+// ---------------------------------------------------------------------------
+// Parameters
+// ---------------------------------------------------------------------------
+
 @description('Environment name, used in resource naming')
 param environmentName string = 'dev'
 
 @description('Azure region for all resources')
 param location string = resourceGroup().location
 
+@description('Principal ID of the Container App system-assigned managed identity')
+param appPrincipalId string
+
+// ---------------------------------------------------------------------------
+// Variables
+// ---------------------------------------------------------------------------
+
 var appName = 'houseofnaksh'
+
 var tags = {
   project: appName
   env: environmentName
   managedBy: 'bicep'
 }
+
+// ---------------------------------------------------------------------------
+// Log Analytics
+// ---------------------------------------------------------------------------
 
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
   name: 'log-${appName}-${environmentName}'
@@ -25,5 +41,25 @@ resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Key Vault
+// ---------------------------------------------------------------------------
+
+module keyVault 'modules/keyvault.bicep' = {
+  name: 'keyvault'
+  params: {
+    name: 'kv-${appName}-${environmentName}'
+    location: location
+    tags: tags
+    appPrincipalId: appPrincipalId
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Outputs
+// ---------------------------------------------------------------------------
+
 output logAnalyticsId string = logAnalytics.id
 output logAnalyticsCustomerId string = logAnalytics.properties.customerId
+output keyVaultUri string = keyVault.outputs.vaultUri
+output keyVaultId string = keyVault.outputs.vaultId
