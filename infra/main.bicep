@@ -10,9 +10,6 @@ param environmentName string = 'dev'
 @description('Azure region for all resources')
 param location string = resourceGroup().location
 
-@description('Principal ID of the Container App system-assigned managed identity')
-param appPrincipalId string
-
 // ---------------------------------------------------------------------------
 // Variables
 // ---------------------------------------------------------------------------
@@ -43,6 +40,10 @@ resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
 
 // ---------------------------------------------------------------------------
 // Key Vault
+//
+// NOTE: RBAC role assignments are intentionally NOT managed here. See
+// infra/README.md — keeping them out prevents the deployment pipeline from
+// being able to escalate its own privileges.
 // ---------------------------------------------------------------------------
 
 module keyVault 'modules/keyvault.bicep' = {
@@ -51,7 +52,6 @@ module keyVault 'modules/keyvault.bicep' = {
     name: 'kv-${appName}-${environmentName}'
     location: location
     tags: tags
-    appPrincipalId: appPrincipalId
   }
 }
 
