@@ -55,6 +55,16 @@ module keyVault 'modules/keyvault.bicep' = {
   }
 }
 
+module appInsights 'modules/appinsights.bicep' = {
+  name: 'appinsights'
+  params: {
+    name: 'appi-${appName}-${environmentName}'
+    location: location
+    tags: tags
+    workspaceId: logAnalytics.id
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Outputs
 // ---------------------------------------------------------------------------
@@ -63,3 +73,4 @@ output logAnalyticsId string = logAnalytics.id
 output logAnalyticsCustomerId string = logAnalytics.properties.customerId
 output keyVaultUri string = keyVault.outputs.vaultUri
 output keyVaultId string = keyVault.outputs.vaultId
+output appInsightsConnectionString string = appInsights.outputs.connectionString
